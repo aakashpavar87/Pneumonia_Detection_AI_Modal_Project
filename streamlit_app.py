@@ -6,7 +6,7 @@ from sklearn.metrics import classification_report, confusion_matrix, roc_curve, 
 from keras.models import Sequential, load_model
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, InputLayer
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-import os
+import os,json
 from keras.metrics import AUC
 
 # Setting random seeds for reproducibility
@@ -85,8 +85,12 @@ def build_cnn_model():
 
 
 # Save the trained model to a file
-def save_trained_model(model):
+def save_trained_model(model, history):
     model.save(model_path)
+    history_path = model_path.replace(".h5", "_history.json")
+
+    with open(history_path, 'w') as f:
+        json.dump(history.history, f)
     st.success(f"Model saved to {model_path}")
 
 
@@ -95,10 +99,19 @@ def load_trained_model():
     if os.path.exists(model_path):
         model = load_model(model_path)
         st.success("Model loaded successfully.")
-        return model
+        
+        history_path = model_path.replace(".h5", "_history.json")
+        if os.path.exists(history_path):
+            with open(history_path, 'r') as f:
+                history = json.load(f)
+            st.success("Training history loaded successfully.")
+            return model, history
+        else:
+            st.warning("Training history file not found.")
+            return model, None
     else:
         st.error(f"Model file not found at {model_path}. Please train the model first.")
-        return None
+        return None, None
 
 
 # Train the CNN model
@@ -113,7 +126,7 @@ def train_cnn_model():
         validation_steps=len(val_generator),
         verbose=1
     )
-    save_trained_model(cnn)  # Save model after training
+    save_trained_model(cnn, history) # Save model after training
     return cnn, history
 
 
@@ -130,10 +143,10 @@ def predict_pneumonia(uploaded_file, model):
 
 # Create charts and metrics for analysis
 def create_charts(cnn, cnn_history):
-    train_loss = cnn_history.history['loss']
-    val_loss = cnn_history.history['val_loss']
-    train_auc = cnn_history.history['auc']  # AUC for training
-    val_auc = cnn_history.history['val_auc']  # AUC for validation
+    train_loss = cnn_history['loss']
+    val_loss = cnn_history['val_loss']
+    train_auc = cnn_history['auc']  # AUC for training
+    val_auc = cnn_history['val_auc']  # AUC for validation
 
     # Confusion matrix predictions
     y_true = test_generator.classes
@@ -189,12 +202,12 @@ def main():
             st.write("Training the model...")
             cnn_model, cnn_history = train_cnn_model()
             st.write("Training completed!")
-            create_charts(cnn_model, cnn_history)  # Show charts after training
+            # create_charts(cnn_model, cnn_history)  # Show charts after training
 
     elif choice == "Check X-Ray for Pneumonia":
         st.header("Check X-Ray for Pneumonia")
         uploaded_file = st.file_uploader("Upload a Chest X-Ray Image (PNG/JPEG)", type=["png", "jpg", "jpeg"])
-        model = load_trained_model()
+        model,history = load_trained_model()
 
         if uploaded_file is not None and model:
             st.image(uploaded_file, caption="Uploaded X-Ray", use_container_width=True)
@@ -209,10 +222,11 @@ def main():
 
     elif choice == "Analyze Dataset":
         st.header("Analyze Dataset")
-        model = load_trained_model()
-        if model:
-            cnn_model, cnn_history = train_cnn_model()
-            create_charts(cnn_model, cnn_history)
+        model, history = load_trained_model()
+        if model and history:
+            create_charts(model, history)
+        else:
+            st.warning("Please train the model first.")
 
 
 # Run the app
