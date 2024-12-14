@@ -2,3 +2,4 @@
 /chest_xray_2/
 /.venv/
 /.idea/
+cnn_model.h5

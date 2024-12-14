@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix, roc_curve, roc_auc_score
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, InputLayer
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import os
@@ -13,6 +13,7 @@ from keras.metrics import AUC
 import random
 import tensorflow as tf
 
+# Setting random seeds for reproducibility
 seed_value = 42
 random.seed(seed_value)
 np.random.seed(seed_value)
@@ -27,8 +28,9 @@ test_path = project_path + "\\chest_xray\\test\\"
 # Hyperparameters
 hyper_dimension = 64
 hyper_batch_size = 128
-hyper_epochs = 10
+hyper_epochs = 50
 hyper_channels = 1  # Grayscale
+model_path = "cnn_model.h5"  # File to save/load the trained model
 
 # Data augmentation and generators
 train_datagen = ImageDataGenerator(rescale=1.0 / 255.0, shear_range=0.2, zoom_range=0.2, horizontal_flip=True)
@@ -82,6 +84,23 @@ def build_cnn_model():
     return cnn
 
 
+# Save the trained model to a file
+def save_trained_model(model):
+    model.save(model_path)
+    st.success(f"Model saved to {model_path}")
+
+
+# Load the trained model from the file
+def load_trained_model():
+    if os.path.exists(model_path):
+        model = load_model(model_path)
+        st.success("Model loaded successfully.")
+        return model
+    else:
+        st.error(f"Model file not found at {model_path}. Please train the model first.")
+        return None
+
+
 # Train the CNN model
 @st.cache_resource
 def train_cnn_model():
@@ -94,130 +113,93 @@ def train_cnn_model():
         validation_steps=len(val_generator),
         verbose=1
     )
+    save_trained_model(cnn)  # Save model after training
     return cnn, history
 
 
-cnn_model, cnn_history = train_cnn_model()
-
-
 # Predict on uploaded X-Ray image
-def predict_pneumonia(uploaded_file):
-    # Load the image
+def predict_pneumonia(uploaded_file, model):
     from keras.preprocessing import image
     img = image.load_img(uploaded_file, target_size=(hyper_dimension, hyper_dimension), color_mode='grayscale')
     img_array = image.img_to_array(img)
     img_array = np.expand_dims(img_array, axis=0) / 255.0
-    # Predict using the CNN model
-    prediction = cnn_model.predict(img_array)
+    st.image(img_array[0].squeeze(), caption="Preprocessed X-Ray", use_container_width=True, clamp=True)
+    prediction = model.predict(img_array)
     return prediction[0][0]  # Probability of having pneumonia
 
 
+# Create charts and metrics for analysis
 def create_charts(cnn, cnn_history):
-    # Extract training and validation loss
     train_loss = cnn_history.history['loss']
     val_loss = cnn_history.history['val_loss']
+    train_auc = cnn_history.history['auc']  # AUC for training
+    val_auc = cnn_history.history['val_auc']  # AUC for validation
 
-    # Extract training and validation AUC scores
-    train_auc_name = list(cnn_history.history.keys())[3]  # Get train AUC key
-    val_auc_name = list(cnn_history.history.keys())[1]  # Get validation AUC key
-    train_auc = cnn_history.history[train_auc_name]
-    val_auc = cnn_history.history[val_auc_name]
-
-    # Predict on test data
+    # Confusion matrix predictions
     y_true = test_generator.classes
-    Y_pred = cnn.predict(test_generator, steps=len(test_generator))
-    y_pred = (Y_pred > 0.5).T[0]
-    y_pred_prob = Y_pred.T[0]
+    y_pred_prob = cnn.predict(test_generator, steps=len(test_generator)).T[0]
+    y_pred = (y_pred_prob > 0.5).astype(int)
 
-    # **Chart 1: Train vs. Validation Loss**
+    # Chart 1: Train vs Validation Loss
     st.write("### Training vs. Validation Loss")
-    fig1, ax1 = plt.subplots()
-    ax1.plot(train_loss, label='Training Loss')
-    ax1.plot(val_loss, label='Validation Loss')
-    ax1.set_title("Loss per Epoch")
-    ax1.set_xlabel("Epochs")
-    ax1.set_ylabel("Loss")
-    ax1.legend()
-    st.pyplot(fig1)
+    plt.figure(figsize=(10, 6))
+    plt.plot(train_loss, label='Training Loss')
+    plt.plot(val_loss, label='Validation Loss')
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.legend()
+    st.pyplot(plt)
 
-    # **Chart 2: Train vs. Validation AUC**
-    st.write("### Training vs. Validation AUC Score")
-    fig2, ax2 = plt.subplots()
-    ax2.plot(train_auc, label='Training AUC')
-    ax2.plot(val_auc, label='Validation AUC')
-    ax2.set_title("AUC per Epoch")
-    ax2.set_xlabel("Epochs")
-    ax2.set_ylabel("AUC")
-    ax2.legend()
-    st.pyplot(fig2)
+    # Chart 2: Train vs Validation AUC
+    st.write("### Training vs. Validation AUC")
+    plt.figure(figsize=(10, 6))
+    plt.plot(train_auc, label='Training AUC')
+    plt.plot(val_auc, label='Validation AUC')
+    plt.xlabel("Epochs")
+    plt.ylabel("AUC")
+    plt.legend()
+    st.pyplot(plt)
 
-    # **Chart 3: Confusion Matrix**
+    # Chart 3: Confusion Matrix
     st.write("### Confusion Matrix")
     cm = confusion_matrix(y_true, y_pred)
-    ticklabels = ['Normal', 'Pneumonia']
-    fig3, ax3 = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=ticklabels, yticklabels=ticklabels, ax=ax3)
-    ax3.set_title("Confusion Matrix")
-    ax3.set_xlabel("Predicted")
-    ax3.set_ylabel("Actual")
-    st.pyplot(fig3)
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Normal', 'Pneumonia'], yticklabels=['Normal', 'Pneumonia'])
+    st.pyplot(plt)
 
-    # **Chart 4: ROC Curve**
+    # Chart 4: ROC Curve
     st.write("### ROC Curve")
     fpr, tpr, thresholds = roc_curve(y_true, y_pred_prob)
-    auc_score = roc_auc_score(y_true, y_pred_prob)
-    fig4, ax4 = plt.subplots()
-    ax4.plot(fpr, tpr, label=f"CNN (AUC = {auc_score:.2f})")
-    ax4.plot([0, 1], [0, 1], 'k--', label="Random Guess (AUC = 0.50)")
-    ax4.set_title("ROC Curve")
-    ax4.set_xlabel("False Positive Rate")
-    ax4.set_ylabel("True Positive Rate")
-    ax4.legend()
-    st.pyplot(fig4)
-
-    # **Statistics**
-    st.write("### Summary Statistics")
-    TN, FP, FN, TP = cm.ravel()
-    accuracy = (TP + TN) / np.sum(cm)
-    precision = TP / (TP + FP)
-    recall = TP / (TP + FN)
-    specificity = TN / (TN + FP)
-    f1 = 2 * (precision * recall) / (precision + recall)
-
-    st.write(f"- **Accuracy**: {accuracy:.2%}")
-    st.write(f"- **Precision**: {precision:.2%}")
-    st.write(f"- **Recall**: {recall:.2%}")
-    st.write(f"- **Specificity**: {specificity:.2%}")
-    st.write(f"- **F1 Score**: {f1:.2%}")
-
-
-# Analyze dataset
-def analyze_dataset():
-    st.title("X-Ray Dataset Analysis")
-    st.write("Analyzing dataset using the trained model.")
-
-    # Display paths
-    st.write(f"Training Path: {train_path}")
-    st.write(f"Validation Path: {val_path}")
-    st.write(f"Test Path: {test_path}")
-
-    # Example: Show a sample chart
-    create_charts(cnn_model, cnn_history)
+    plt.figure(figsize=(10, 6))
+    plt.plot(fpr, tpr, label=f'AUC = {roc_auc_score(y_true, y_pred_prob):.2f}')
+    plt.plot([0, 1], [0, 1], 'k--')
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.legend()
+    st.pyplot(plt)
 
 
 # Streamlit application layout
 def main():
     st.title("Chest X-Ray Pneumonia Detection and Dataset Analysis")
-    choice = st.sidebar.radio("Select an Option", ["Check X-Ray for Pneumonia", "Analyze Dataset"])
+    choice = st.sidebar.radio("Select an Option", ["Train Model", "Check X-Ray for Pneumonia", "Analyze Dataset"])
 
-    if choice == "Check X-Ray for Pneumonia":
+    if choice == "Train Model":
+        st.header("Train Model")
+        if st.button("Start Training"):
+            st.write("Training the model...")
+            cnn_model, cnn_history = train_cnn_model()
+            st.write("Training completed!")
+            create_charts(cnn_model, cnn_history)  # Show charts after training
+
+    elif choice == "Check X-Ray for Pneumonia":
         st.header("Check X-Ray for Pneumonia")
         uploaded_file = st.file_uploader("Upload a Chest X-Ray Image (PNG/JPEG)", type=["png", "jpg", "jpeg"])
+        model = load_trained_model()
 
-        if uploaded_file is not None:
+        if uploaded_file is not None and model:
             st.image(uploaded_file, caption="Uploaded X-Ray", use_container_width=True)
             st.write("Analyzing the uploaded X-Ray...")
-            result = predict_pneumonia(uploaded_file)
+            result = predict_pneumonia(uploaded_file, model)
             if result > 0.5:
                 st.write("### Result: Pneumonia Detected")
                 st.write(f"Confidence: {result:.2%}")
@@ -226,7 +208,11 @@ def main():
                 st.write(f"Confidence: {100 - result * 100:.2%}")
 
     elif choice == "Analyze Dataset":
-        analyze_dataset()
+        st.header("Analyze Dataset")
+        model = load_trained_model()
+        if model:
+            cnn_model, cnn_history = train_cnn_model()
+            create_charts(cnn_model, cnn_history)
 
 
 # Run the app
