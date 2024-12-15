@@ -1,4 +1,6 @@
 import streamlit as st
+from PIL import Image
+from io import BytesIO
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -12,6 +14,14 @@ from keras.metrics import AUC
 # Setting random seeds for reproducibility
 import random
 import tensorflow as tf
+
+im = Image.open("favicon.ico")
+st.set_page_config(
+    page_title="Pneumonia Detection with Python",
+    page_icon=im,
+    layout="wide",
+)
+st.logo('static/lungs.png')
 
 # Setting random seeds for reproducibility
 seed_value = 42
@@ -193,7 +203,17 @@ def create_charts(cnn, cnn_history):
 
 # Streamlit application layout
 def main():
-    st.title("Chest X-Ray Pneumonia Detection and Dataset Analysis")
+    image_url = "./app/static/lungs.png"
+    title = "Chest X-Ray Pneumonia Detection and Dataset Analysis"
+    st.markdown(
+        f"""
+            <h1 style="display: flex; align-items: center; gap: 10px;">
+                {title}
+                <img src="{image_url}" alt="lung image" style="height: 50px;">
+            </h1>
+            """,
+        unsafe_allow_html=True,
+    )
     choice = st.sidebar.radio("Select an Option", ["Train Model", "Check X-Ray for Pneumonia", "Analyze Dataset"])
 
     if choice == "Train Model":
