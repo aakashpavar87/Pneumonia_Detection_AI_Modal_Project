@@ -234,10 +234,10 @@ def main():
             st.write("Analyzing the uploaded X-Ray...")
             result = predict_pneumonia(uploaded_file, model)
             if result > 0.5:
-                st.write("### Result: Pneumonia Detected")
+                st.write("### Result: Pneumonia Detected 😔")
                 st.write(f"Confidence: {result:.2%}")
             else:
-                st.write("### Result: No Pneumonia Detected")
+                st.write("### Result: No Pneumonia Detected 😊")
                 st.write(f"Confidence: {100 - result * 100:.2%}")
 
     elif choice == "Analyze Dataset":
