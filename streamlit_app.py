@@ -200,6 +200,20 @@ def create_charts(cnn, cnn_history):
     plt.legend()
     st.pyplot(plt)
 
+    st.write("### Summary Statistics 🔢")
+    TN, FP, FN, TP = cm.ravel()
+    accuracy = (TP + TN) / np.sum(cm)
+    precision = TP / (TP + FP)
+    recall = TP / (TP + FN)
+    specificity = TN / (TN + FP)
+    f1 = 2 * (precision * recall) / (precision + recall)
+
+    st.write(f"- **Accuracy**: {accuracy:.2%}")
+    st.write(f"- **Precision**: {precision:.2%}")
+    st.write(f"- **Recall**: {recall:.2%}")
+    st.write(f"- **Specificity**: {specificity:.2%}")
+    st.write(f"- **F1 Score**: {f1:.2%}")
+
 
 # Streamlit application layout
 def main():
