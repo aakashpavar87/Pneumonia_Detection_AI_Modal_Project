@@ -218,25 +218,15 @@ def create_charts(cnn, cnn_history):
 
 def is_valid_chest_xray(uploaded_file):
     try:
-        # Open the file as an image
         image = Image.open(uploaded_file)
-
-        # Convert image to RGB (to handle different image modes) and then to a NumPy array
         image_array = np.array(image.convert("RGB"))
-
-        # Convert the image to grayscale
         gray_image = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
-
-        # Compute basic intensity statistics
         mean_intensity = np.mean(gray_image)
         std_intensity = np.std(gray_image)
-
-        # Validate based on thresholds
         if mean_intensity > 200 or std_intensity > 75:
             return False
         return True
     except Exception as e:
-        # Return False if any exception occurs
         return False
 
 # Streamlit application layout
@@ -260,7 +250,6 @@ def main():
             st.write("Training the model...")
             cnn_model, cnn_history = train_cnn_model()
             st.write("Training completed!")
-            # create_charts(cnn_model, cnn_history)  # Show charts after training
 
     elif choice == "Check X-Ray for Pneumonia":
         st.header("Check X-Ray for Pneumonia")
