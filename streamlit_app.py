@@ -10,6 +10,7 @@ from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, InputLayer
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import os,json
 from keras.metrics import AUC
+import cv2
 
 # Setting random seeds for reproducibility
 import random
@@ -215,6 +216,29 @@ def create_charts(cnn, cnn_history):
     st.write(f"- **F1 Score**: {f1:.2%}")
 
 
+def is_valid_chest_xray(uploaded_file):
+    try:
+        # Open the file as an image
+        image = Image.open(uploaded_file)
+
+        # Convert image to RGB (to handle different image modes) and then to a NumPy array
+        image_array = np.array(image.convert("RGB"))
+
+        # Convert the image to grayscale
+        gray_image = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+
+        # Compute basic intensity statistics
+        mean_intensity = np.mean(gray_image)
+        std_intensity = np.std(gray_image)
+
+        # Validate based on thresholds
+        if mean_intensity > 200 or std_intensity > 75:
+            return False
+        return True
+    except Exception as e:
+        # Return False if any exception occurs
+        return False
+
 # Streamlit application layout
 def main():
     image_url = "./app/static/lungs.png"
@@ -245,14 +269,18 @@ def main():
 
         if uploaded_file is not None and model:
             st.image(uploaded_file, caption="Uploaded X-Ray", use_container_width=True)
-            st.write("Analyzing the uploaded X-Ray...")
-            result = predict_pneumonia(uploaded_file, model)
-            if result > 0.5:
-                st.write("### Result: Pneumonia Detected 😔")
-                st.write(f"Confidence: {result:.2%}")
+            # Validate the image
+            if not is_valid_chest_xray(uploaded_file):
+                st.error("The uploaded image does not appear to be a valid Chest X-Ray. Please upload a correct image.")
             else:
-                st.write("### Result: No Pneumonia Detected 😊")
-                st.write(f"Confidence: {100 - result * 100:.2%}")
+                st.write("Analyzing the uploaded X-Ray...")
+                result = predict_pneumonia(uploaded_file, model)
+                if result > 0.5:
+                    st.write("### Result: Pneumonia Detected 😔")
+                    st.write(f"Confidence: {result:.2%}")
+                else:
+                    st.write("### Result: No Pneumonia Detected 😊")
+                    st.write(f"Confidence: {100 - result * 100:.2%}")
 
     elif choice == "Analyze Dataset":
         st.header("Analyze Dataset")
