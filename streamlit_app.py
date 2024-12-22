@@ -11,6 +11,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import os,json
 from keras.metrics import AUC
 import cv2
+import time
 
 # Setting random seeds for reproducibility
 import random
@@ -23,6 +24,15 @@ st.set_page_config(
     layout="wide",
 )
 st.logo('static/lungs.png')
+message_placeholder = st.empty()
+
+def display_message(message, type):
+    if type == "success":
+        message_placeholder.success(message)
+    else:
+        message_placeholder.error(message)
+    time.sleep(3)
+    message_placeholder.empty()
 
 # Setting random seeds for reproducibility
 seed_value = 42
@@ -102,26 +112,26 @@ def save_trained_model(model, history):
 
     with open(history_path, 'w') as f:
         json.dump(history.history, f)
-    st.success(f"Model saved to {model_path}")
+    display_message(f"Model saved to {model_path}", "success")
 
 
 # Load the trained model from the file
 def load_trained_model():
     if os.path.exists(model_path):
         model = load_model(model_path)
-        st.success("Model loaded successfully.")
-        
+        display_message("Model loaded successfully.", "success")
+
         history_path = model_path.replace(".h5", "_history.json")
         if os.path.exists(history_path):
             with open(history_path, 'r') as f:
                 history = json.load(f)
-            st.success("Training history loaded successfully.")
+            display_message("Training history loaded successfully.", "success")
             return model, history
         else:
-            st.warning("Training history file not found.")
+            display_message("Training history file not found.", "error")
             return model, None
     else:
-        st.error(f"Model file not found at {model_path}. Please train the model first.")
+        display_message(f"Model file not found at {model_path}. Please train the model first.", "error")
         return None, None
 
 
@@ -260,7 +270,7 @@ def main():
             st.image(uploaded_file, caption="Uploaded X-Ray", use_container_width=True)
             # Validate the image
             if not is_valid_chest_xray(uploaded_file):
-                st.error("The uploaded image does not appear to be a valid Chest X-Ray. Please upload a correct image.")
+                display_message("The uploaded image does not appear to be a valid Chest X-Ray. Please upload a correct image.", "error")
             else:
                 st.write("Analyzing the uploaded X-Ray...")
                 result = predict_pneumonia(uploaded_file, model)
@@ -277,7 +287,7 @@ def main():
         if model and history:
             create_charts(model, history)
         else:
-            st.warning("Please train the model first.")
+            display_message("Please train the model first.", "error")
 
 
 # Run the app
