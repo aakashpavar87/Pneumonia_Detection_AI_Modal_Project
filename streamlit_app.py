@@ -197,7 +197,24 @@ def create_charts(cnn, cnn_history):
     # Chart 3: Confusion Matrix
     st.write("### Confusion Matrix")
     cm = confusion_matrix(y_true, y_pred)
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Normal', 'Pneumonia'], yticklabels=['Normal', 'Pneumonia'])
+    names = ['True Negatives', 'False Positives', 'False Negatives', 'True Positives']
+    counts = ['{0:0.0f}'.format(value) for value in cm.flatten()]
+    percentages = ['{0:.2%}'.format(value) for value in cm.flatten() / np.sum(cm)]
+    labels = [f'{v1}\n{v2}' for v1, v2 in zip(names, percentages)]
+    labels = np.asarray(labels).reshape(2, 2)
+    ticklabels = ['Normal', 'Pneumonia']
+
+    # Create confusion matrix heatmap
+    plt.figure(figsize=(8, 6))
+    sns.set(font_scale=1.4)
+    ax = sns.heatmap(cm, annot=labels, fmt='', cmap='Oranges', xticklabels=ticklabels, yticklabels=ticklabels)
+    plt.xticks(size=12)
+    plt.yticks(size=12)
+    plt.title("Confusion Matrix", size=16)
+    plt.xlabel("Predicted", size=14)
+    plt.ylabel("Actual", size=14)
+
+    # Display the plot in the Streamlit app
     st.pyplot(plt)
 
     # Chart 4: ROC Curve
